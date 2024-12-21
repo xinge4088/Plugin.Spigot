@@ -27,7 +27,7 @@ public class WsSender extends WebSocketClient {
         HashMap<String, String> headers = new HashMap<>();
         headers.put("name", config.getString("name"));
         headers.put("token", config.getString("token"));
-        // 如果需要自定义 Header，可能需要使用 WebSocket 客户端的支持库来实现，或者通过 URL 查询参数传递。
+        // 可以在此处设置自定义请求头
     }
 
     // 判断连接是否正常
@@ -40,14 +40,21 @@ public class WsSender extends WebSocketClient {
         executorService.submit(() -> {
             for (int count = 0; count < 3; count++) {
                 logger.warning("[Sender] 检测到与机器人的连接已断开！正在尝试重连……");
-                this.reconnect();  // 检查这个方法是否存在，可能需要使用其他重连方法
+                try {
+                    this.reconnectBlocking();  // 使用阻塞式重连
+                } catch (InterruptedException e) {
+                    logger.error("[Sender] 重连时发生错误", e);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (this.isConnected()) {
+                    logger.info("[Sender] 与机器人连接成功！");
+                    return;
+                }
                 try {
                     Thread.sleep(1000);  // 暂停1秒钟等待重连
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                }
-                if (this.isConnected()) {
-                    this.logger.info("[Sender] 与机器人连接成功！");
                     return;
                 }
             }
@@ -58,20 +65,23 @@ public class WsSender extends WebSocketClient {
     // 异步发送数据
     public void sendDataAsync(String eventType, Object data) {
         executorService.submit(() -> {
-            // 检查是否连接
             if (!this.isConnected()) {
-                tryReconnectAsync(); // 异步重连
+                logger.warning("[Sender] WebSocket 当前未连接，尝试重连...");
+                tryReconnectAsync(); // 如果未连接，则尝试重连
                 return;
             }
 
             HashMap<String, Object> messageData = new HashMap<>();
             messageData.put("data", data);
             messageData.put("type", eventType);
+
             try {
-                this.send(this.utils.encode(messageData));
+                String encodedMessage = this.utils.encode(messageData);  // 编码消息
+                this.send(encodedMessage);  // 发送数据
+                log.debug("[Sender] 发送数据: {}", messageData);
             } catch (Exception e) {
                 logger.warning("[Sender] 发送数据失败！" + e.getMessage());
-                tryReconnectAsync(); // 异步重连
+                tryReconnectAsync(); // 如果发送失败，则尝试重连
             }
         });
     }
@@ -119,11 +129,20 @@ public class WsSender extends WebSocketClient {
     @Override
     public void onMessage(String message) {
         this.message = message; // 接收到的消息
+        log.debug("[Sender] 接收到消息: {}", message);
     }
 
     // 停止 WebSocket 连接
     public void stop() {
         this.close();
-        executorService.shutdown(); // 关闭线程池
+        executorService.shutdownNow();  // 强制关闭线程池
+        try {
+            if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                logger.warning("[Sender] 线程池在30秒内未正常终止");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warning("[Sender] 停止过程中线程池中断");
+        }
     }
 }
