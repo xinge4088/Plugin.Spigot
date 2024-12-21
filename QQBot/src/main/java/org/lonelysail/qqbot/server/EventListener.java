@@ -21,7 +21,7 @@ public class EventListener implements Listener {
     @EventHandler
     public void PlayerQuit(PlayerQuitEvent event) {
         // 使用异步任务发送玩家离开消息
-        Bukkit.getScheduler().runTaskAsync(YourPluginInstance, () -> {
+        Bukkit.getScheduler().runTaskAsync(this, () -> {
             this.sender.sendPlayerLeft(event.getPlayer().getName());
         });
     }
@@ -30,7 +30,7 @@ public class EventListener implements Listener {
     @EventHandler
     public void playerJoin(PlayerJoinEvent event) {
         // 使用异步任务发送玩家加入消息
-        Bukkit.getScheduler().runTaskAsync(YourPluginInstance, () -> {
+        Bukkit.getScheduler().runTaskAsync(this, () -> {
             this.sender.sendPlayerJoined(event.getPlayer().getName());
         });
     }
@@ -39,7 +39,7 @@ public class EventListener implements Listener {
     @EventHandler
     public void playerChat(AsyncPlayerChatEvent event) {
         // 使用异步任务发送玩家聊天消息
-        Bukkit.getScheduler().runTaskAsync(YourPluginInstance, () -> {
+        Bukkit.getScheduler().runTaskAsync(this, () -> {
             this.sender.sendPlayerChat(event.getPlayer().getName(), event.getMessage());
         });
     }
@@ -48,7 +48,7 @@ public class EventListener implements Listener {
     @EventHandler
     public void playerDeath(PlayerDeathEvent event) {
         // 使用异步任务发送玩家死亡消息
-        Bukkit.getScheduler().runTaskAsync(YourPluginInstance, () -> {
+        Bukkit.getScheduler().runTaskAsync(this, () -> {
             Player player = event.getEntity();
             this.sender.sendPlayerDeath(player.getName(), event.getDeathMessage());
         });
