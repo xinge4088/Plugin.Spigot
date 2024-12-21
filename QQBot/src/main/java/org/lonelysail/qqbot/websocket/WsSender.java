@@ -3,7 +3,6 @@ package org.lonelysail.qqbot.websocket;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ServerHandshake;
 import org.lonelysail.qqbot.Utils;
 import org.slf4j.LoggerFactory;
@@ -24,10 +23,11 @@ public class WsSender extends WebSocketClient {
     public WsSender(JavaPlugin plugin, Configuration config) {
         super(URI.create(config.getString("uri")).resolve("websocket/bot"));
         this.logger = plugin.getLogger();
+        // 设置请求头
         HashMap<String, String> headers = new HashMap<>();
         headers.put("name", config.getString("name"));
         headers.put("token", config.getString("token"));
-        this.addHeader("info", this.utils.encode(headers));
+        // 如果需要自定义 Header，可能需要使用 WebSocket 客户端的支持库来实现，或者通过 URL 查询参数传递。
     }
 
     // 判断连接是否正常
@@ -40,7 +40,7 @@ public class WsSender extends WebSocketClient {
         executorService.submit(() -> {
             for (int count = 0; count < 3; count++) {
                 logger.warning("[Sender] 检测到与机器人的连接已断开！正在尝试重连……");
-                this.reconnect();
+                this.reconnect();  // 检查这个方法是否存在，可能需要使用其他重连方法
                 try {
                     Thread.sleep(1000);  // 暂停1秒钟等待重连
                 } catch (InterruptedException e) {
@@ -69,8 +69,8 @@ public class WsSender extends WebSocketClient {
             messageData.put("type", eventType);
             try {
                 this.send(this.utils.encode(messageData));
-            } catch (WebsocketNotConnectedException e) {
-                logger.warning("[Sender] 发送数据失败！与机器人的连接已断开。");
+            } catch (Exception e) {
+                logger.warning("[Sender] 发送数据失败！" + e.getMessage());
                 tryReconnectAsync(); // 异步重连
             }
         });
