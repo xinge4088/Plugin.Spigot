@@ -19,7 +19,16 @@ jobs:
         cache: maven
 
     - name: Build with Maven
-      run: mvn -B package --file QQBot/pom.xml
+      run: mvn -B clean package --file QQBot/pom.xml
+
+    - name: Check Maven build result
+      run: |
+        if [ -d "target" ]; then
+          echo "Build succeeded, target directory exists."
+        else
+          echo "Build failed or target directory does not exist."
+          exit 1
+        fi
 
     - name: List target directory
       run: ls -al target/  # 列出 target 目录中的文件，确保 JAR 文件存在
@@ -49,5 +58,4 @@ jobs:
         echo "Release creation succeeded"
         echo "You can download the JAR file from the following URL:"
         echo "https://github.com/${{ github.repository }}/releases/download/v1.0.${{ github.run_number }}/$(basename target/*.jar)"
-
 
