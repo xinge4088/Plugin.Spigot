@@ -25,6 +25,11 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
+    - name: Set up Git user
+      run: |
+        git config --global user.email "2061625072@qq.com"  # 设置 Git 用户的电子邮件地址
+        git config --global user.name "xinge4088"        # 设置 Git 用户的姓名
+
     - name: Create a new tag
       run: |
         git tag -a v1.0.${{ github.run_number }} -m "Release version v1.0.${{ github.run_number }}"
@@ -38,15 +43,12 @@ jobs:
         files: target/*.jar                       # 上传生成的 JAR 文件
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Set up Git user
-      run: |
-        git config --global user.email "2061625072@qq.com"
-        git config --global user.name "xinge4088"
-          
+
     - name: Upload JAR to Release
       if: success() && steps.create_release.outputs.upload_url
       run: |
         echo "Release creation succeeded"
         echo "You can download the JAR file from the following URL:"
         echo "https://github.com/${{ github.repository }}/releases/download/v1.0.${{ github.run_number }}/$(basename target/*.jar)"
+
 
