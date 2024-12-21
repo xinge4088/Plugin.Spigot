@@ -1,6 +1,10 @@
 name: Java CI with Maven
 
 on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -19,27 +23,12 @@ jobs:
         cache: maven
 
     - name: Build with Maven
-      run: mvn -B clean package --file QQBot/pom.xml -X  # 生成详细日志
-
-    - name: List current directory
-      run: ls -al
-
-    - name: List target directory
-      run: ls -al target/ || echo "target directory does not exist"
-
-    - name: Check Maven build result
-      run: |
-        if [ -d "target" ]; then
-          echo "Build succeeded, target directory exists."
-        else
-          echo "Build failed or target directory does not exist."
-          exit 1
-        fi
+      run: mvn -B package --file pom.xml
 
     - name: Set up Git user
       run: |
-        git config --global user.email "2061625072@qq.com"
-        git config --global user.name "xinge4088"
+        git config --global user.email "2061625072@qq.com"  # 设置 Git 用户的电子邮件地址
+        git config --global user.name "xinge4088"        # 设置 Git 用户的姓名
 
     - name: Create a new tag
       run: |
@@ -50,8 +39,8 @@ jobs:
       id: create_release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.${{ github.run_number }}
-        files: target/*.jar
+        tag_name: v1.0.${{ github.run_number }}   # 使用自动生成的标签
+        files: target/*.jar                       # 上传生成的 JAR 文件
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -61,3 +50,5 @@ jobs:
         echo "Release creation succeeded"
         echo "You can download the JAR file from the following URL:"
         echo "https://github.com/${{ github.repository }}/releases/download/v1.0.${{ github.run_number }}/$(basename target/*.jar)"
+
+
