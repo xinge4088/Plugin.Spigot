@@ -36,4 +36,11 @@ public class EventListener implements Listener {
         // 发送玩家聊天的消息
         this.sender.sendPlayerChat(event.getPlayer().getName(), event.getMessage());
     }
+    @EventHandler
+    public void playerDeath(PlayerDeathEvent event) {
+        // 获取死亡的玩家对象
+        Player player = event.getEntity();
+        // 发送玩家死亡的消息
+        this.sender.sendPlayerDeath(player.getName(), event.getDeathMessage());
+    }
 }
