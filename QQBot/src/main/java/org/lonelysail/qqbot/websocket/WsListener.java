@@ -23,8 +23,10 @@ public class WsListener extends WebSocketClient {
     private final Logger logger;
     private final Server server;
     private final JavaPlugin plugin;
+
     private final Utils utils = new Utils();
     private final OperatingSystemMXBean bean = ManagementFactory.getPlatformMXBean(OperatingSystemMXBean.class);
+
 
     public WsListener(JavaPlugin plugin, Configuration config) {
         super(URI.create(Objects.requireNonNull(config.getString("uri"))).resolve("websocket/minecraft"));
@@ -42,7 +44,7 @@ public class WsListener extends WebSocketClient {
 
     // 处理命令请求
     private String command(String data) {
-        // 使用异步方式执行命令，避免阻塞主线程
+    //    CustomCommandSender customSender = new CustomCommandSender(this.server.getConsoleSender());
         Bukkit.getScheduler().runTask(this.plugin, () -> this.server.dispatchCommand(this.server.getConsoleSender(), data));
         return "命令已发送到服务器！当前插件不支持获取命令返回值。";
     }
@@ -50,20 +52,17 @@ public class WsListener extends WebSocketClient {
     // 获取在线玩家列表
     private List<String> playerList(String data) {
         List<String> players = new ArrayList<>();
-        for (Player player : this.server.getOnlinePlayers()) {
-            players.add(player.getName());
-        }
+        for (Player player : this.server.getOnlinePlayers()) players.add(player.getName());
         return players;
     }
 
-    // 获取服务器的CPU和内存使用情况
     private List<Double> serverOccupation(String data) {
         Runtime runtime = Runtime.getRuntime();
-        List<Double> serverOccupations = new ArrayList<>(2); // 预分配2个位置，避免动态扩容
+        List<Double> serverOccupations = new ArrayList<>();
         long freeMemory = runtime.freeMemory();
         long totalMemory = runtime.totalMemory();
-        serverOccupations.add(this.bean.getProcessCpuLoad() * 100);  // 获取CPU负载
-        serverOccupations.add(((double) (totalMemory - freeMemory) / totalMemory) * 100);  // 获取内存占用百分比
+        serverOccupations.add(this.bean.getProcessCpuLoad() * 100);
+        serverOccupations.add(((double) ((totalMemory - freeMemory)) / totalMemory) * 100);
         return serverOccupations;
     }
 
@@ -74,53 +73,44 @@ public class WsListener extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        try {
-            // 解码接收到的消息
-            HashMap<String, ?> map = this.utils.decode(message);
-            Object data = map.get("data");
-            String eventType = (String) map.get("type");
+        HashMap<String, ?> map = this.utils.decode(message);
+        Object data = map.get("data");
+        String event_type = (String) map.get("type");
+        this.logger.fine("收到消息机器人消息 " + map);
+        Object response;
+        HashMap<String, Object> responseMessage = new HashMap<>();
 
-            this.logger.fine("收到机器人消息 " + map);
-
-            Object response;
-            HashMap<String, Object> responseMessage = new HashMap<>();
-
-            if (Objects.equals(eventType, "message")) {
-                // 广播消息
-                String broadcastMessage = this.utils.toStringMessage((List) data);
-                this.server.broadcastMessage(broadcastMessage);
-                this.logger.fine("[Listener] 收到广播消息 " + broadcastMessage);
-            } else if (Objects.equals(eventType, "command")) {
-                // 处理命令请求
-                response = this.command((String) data);
-            } else if (Objects.equals(eventType, "player_list")) {
-                // 获取玩家列表
-                response = this.playerList((String) data);
-            } else if (Objects.equals(eventType, "server_occupation")) {
-                // 获取服务器的CPU和内存占用情况
-                response = this.serverOccupation((String) data);
-            } else {
-                // 未知事件类型
-                this.logger.warning("[Listener] 未知的事件类型: " + eventType);
-                responseMessage.put("success", false);
-                this.send(this.utils.encode(responseMessage));
-                return;
-            }
-
-            // 返回响应
-            responseMessage.put("success", true);
-            responseMessage.put("data", response);
+        if (Objects.equals(event_type, "message")) {
+            String broadcastMessage = this.utils.toStringMessage((List) data);
+            this.server.broadcastMessage(broadcastMessage);
+            this.logger.fine("[Listener] 收到广播消息 " + broadcastMessage);
+            return;
+        } else if (Objects.equals(event_type, "command")) {
+            // 如果事件类型是"command"，则调用command方法处理
+            response = this.command((String) data);
+        } else if (Objects.equals(event_type, "player_list")) {
+            // 如果事件类型是"player_list"，则调用playerList方法处理
+            response = this.playerList((String) data);
+        } else if (Objects.equals(event_type, "server_occupation")) {
+            // 如果事件类型是"server_occupation"，则调用serverOccupation方法处理
+            response = this.serverOccupation((String) data);
+        } else {
+            // 如果事件类型未知，则记录警告信息并返回失败响应
+            this.logger.warning("[Listener] 未知的事件类型: " + event_type);
+            responseMessage.put("success", false);
             this.send(this.utils.encode(responseMessage));
-
-        } catch (Exception e) {
-            this.logger.severe("[Listener] 处理消息时发生异常：" + e.getMessage());
-            e.printStackTrace();
+            return;
         }
+        responseMessage.put("success", true);
+        responseMessage.put("data", response);
+        this.logger.fine("发送响应消息 " + responseMessage);
+        // 构造成功响应并发送
+        this.send(this.utils.encode(responseMessage));
     }
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        this.logger.warning("[Listener] 与机器人的连接已关闭！原因: " + reason);
+        this.logger.warning("[Listener] 与机器人的链接已关闭！");
         if (this.serverRunning) {
             this.logger.info("[Listener] 正在尝试重新链接……");
             Bukkit.getScheduler().runTaskLater(this.plugin, this::reconnect, 100);
@@ -129,15 +119,7 @@ public class WsListener extends WebSocketClient {
 
     @Override
     public void onError(Exception ex) {
-        this.logger.warning("[Listener] 机器人连接发生错误：" + ex.getMessage());
+        this.logger.warning("[Listener] 机器人连接发生 " + ex.getMessage() + " 错误！");
         ex.printStackTrace();
     }
-
-    // 尝试重新连接
-    private void reconnect() {
-        if (!this.isOpen()) {
-            this.connect();
-        }
-    }
 }
-
