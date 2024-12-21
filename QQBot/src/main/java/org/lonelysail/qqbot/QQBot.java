@@ -8,73 +8,61 @@ import org.lonelysail.qqbot.server.commands.QQCommand;
 import org.lonelysail.qqbot.websocket.WsListener;
 import org.lonelysail.qqbot.websocket.WsSender;
 
-import java.util.logging.Level;
+import java.util.Objects;
 
 public final class QQBot extends JavaPlugin {
-    private Configuration config;
+    public Configuration config;
 
     private WsListener websocketListener;
     private WsSender websocketSender;
 
     // 插件加载时调用的方法，初始化配置文件
     @Override
-    public void onEnable() {
-        // 加载配置文件
+    public void onLoad() {
         this.saveDefaultConfig();
         this.config = this.getConfig();
+    }
 
-        // 初始化 WebSocket 连接
+    // 插件启用时调用的方法，初始化并启动各种服务
+    @Override
+    public void onEnable() {
         this.getLogger().info("正在初始化与机器人的连接……");
-        initWebSocketConnections();
 
-        // 注册事件监听器
-        EventListener eventListener = new EventListener(this.websocketSender);
-        this.getServer().getPluginManager().registerEvents(eventListener, this);
+        // 使用异步任务来初始化 WebSocket 连接
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            // WebSocket 连接初始化
+            websocketSender = new WsSender(this, this.config);
+            websocketSender.connect(); // 异步连接 WebSocket
+            
+            websocketListener = new WsListener(this, this.config);
+            websocketListener.connect(); // 异步连接 WebSocket
 
-        // 注册插件命令
-        registerCommands();
+            // 连接完成后，进行事件监听器和命令执行器注册
+            Bukkit.getScheduler().runTask(this, () -> {
+                EventListener eventListener = new EventListener(websocketSender);
+                QQCommand command = new QQCommand(websocketSender, this.config.getString("name"));
+                Objects.requireNonNull(this.getCommand("qq")).setExecutor(command);
+                this.getServer().getPluginManager().registerEvents(eventListener, this);
 
-        // 延迟发送服务器启动信息，给 WebSocket 连接一些时间
-        Bukkit.getScheduler().runTaskLater(this, () -> websocketSender.sendServerStartup(), 20);
-    }
-
-    private void initWebSocketConnections() {
-        try {
-            // 初始化 WebSocket 发送器并连接
-            this.websocketSender = new WsSender(this, this.config);
-            this.websocketSender.connect();
-
-            // 初始化 WebSocket 监听器并连接
-            this.websocketListener = new WsListener(this, this.config);
-            this.websocketListener.connect();
-        } catch (Exception e) {
-            this.getLogger().log(Level.SEVERE, "初始化 WebSocket 连接失败！", e);
-            // 如果初始化失败，可以考虑停止插件
-            this.getServer().getPluginManager().disablePlugin(this);
-        }
-    }
-
-    private void registerCommands() {
-        QQCommand command = new QQCommand(this.websocketSender, this.config.getString("name"));
-        if (getCommand("qq") != null) {
-            getCommand("qq").setExecutor(command);
-        } else {
-            this.getLogger().warning("命令 /qq 没有注册成功！");
-        }
+                // 延迟发送服务器启动信息
+                Bukkit.getScheduler().runTaskLater(this, () -> websocketSender.sendServerStartup(), 20);
+            });
+        });
     }
 
     // 插件禁用时调用的方法，关闭各种服务
     @Override
     public void onDisable() {
-        // 关闭 WebSocket 连接并发送服务器关闭消息
-        if (websocketSender != null) {
+        // 在异步线程中执行 WebSocket 的关闭操作，避免阻塞主线程
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            // 发送服务器关闭信号
             websocketSender.sendServerShutdown();
             websocketSender.close();
-        }
-        if (websocketListener != null) {
-            websocketListener.setServerRunning(false);
+            
+            // 停止 WebSocket 监听
+            websocketListener.serverRunning = false;
             websocketListener.close();
-        }
+        });
     }
 }
 
